@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,6 +265,24 @@ spec:
     - ubuntu
 `,
 		},
+		{
+			name: "substrings",
+			config: `
+data:
+  app: nginx
+  image: nginx-abc
+`,
+			input: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-abc-deployment
+`,
+			expectedResources: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-abc-deployment # kpt-set: ${image}-deployment
+`,
+		},
 
 		{
 			name: "scalar setter donot match",
@@ -480,52 +499,75 @@ type lineCommentTest struct {
 
 var resolveLineCommentCases = []lineCommentTest{
 	{
-		name:    "comment for pattern 1",
+		name:    "matches multiple setters",
 		value:   "foo-dev-bar-us-east-baz",
 		comment: `foo-${role}-bar-${region}-baz`,
 	},
 	{
-		name:    "comment for pattern 2",
+		name:    "matches part of a string",
 		value:   "nginx:1.2.1",
-		comment: `${image}:1.2.1`,
+		comment: `${app}:1.2.1`,
 	},
 	{
-		name:    "comment for pattern 3",
+		name:    "matches multiple setters",
 		value:   "nginx:1.1.2",
-		comment: `${image}:${tag}`,
+		comment: `${app}:${tag}`,
 	},
 	{
-		name:    "comment for pattern 4",
+		name:    "simple match setter",
 		value:   "ubuntu",
 		comment: `${env}`,
 	},
 	{
-		name:    "comment for pattern 5",
+		name:    "no match",
 		value:   "linux",
 		comment: ``,
+	},
+	{
+		name:    "matches the maximum length setter",
+		value:   "nginx-abc",
+		comment: `${image}`,
+	},
+	{
+		name:    "setters matches part of a string",
+		value:   "nginx-base",
+		comment: `${app}-base`,
+	},
+	{
+		name:    "overlap case",
+		value:   "dev",
+		comment: `${role}`,
 	},
 }
 
 var inputSetters = []ScalarSetter{
 	{
-		Name:  "env",
-		Value: "ubuntu",
-	},
-	{
-		Name:  "image",
-		Value: "nginx",
+		Name:  "tag",
+		Value: "1.1.2",
 	},
 	{
 		Name:  "role",
 		Value: "dev",
 	},
 	{
-		Name:  "tag",
-		Value: "1.1.2",
+		Name:  "app",
+		Value: "nginx",
+	},
+	{
+		Name:  "image",
+		Value: "nginx-abc",
+	},
+	{
+		Name:  "ns",
+		Value: "role",
 	},
 	{
 		Name:  "region",
 		Value: "us-east",
+	},
+	{
+		Name:  "env",
+		Value: "ubuntu",
 	},
 }
 
@@ -534,7 +576,13 @@ func TestCurrentSetterValues(t *testing.T) {
 		for i := range tests {
 			test := tests[i]
 			t.Run(test.name, func(t *testing.T) {
-				res, match := getLineComment(test.value, inputSetters)
+				sort.Sort(CompareSetters(inputSetters))
+				Replacer := []string{}
+				for _, setter := range inputSetters {
+					Replacer = append(Replacer, setter.Value)
+					Replacer = append(Replacer, fmt.Sprintf("${%s}", setter.Name))
+				}
+				res, match := getLineComment(test.value, Replacer)
 				if match {
 					if !assert.Equal(t, test.comment, res) {
 						t.FailNow()
