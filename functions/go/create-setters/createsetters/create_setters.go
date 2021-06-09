@@ -173,7 +173,7 @@ func (cs *CreateSetters) visitMapping(object *yaml.RNode, path string) error {
 				// adds the comment to the key for the FoldedStyle value node
 				nodeToAddComment = node.Key
 			}
-		}else{
+		} else {
 			// adds comment to the key for the FoldedStyle value node
 			nodeToAddComment = node.Key
 		}
@@ -225,6 +225,11 @@ func (cs *CreateSetters) visitScalar(object *yaml.RNode, path string) error {
 		return nil
 	}
 
+	// doesn't add the comment to the nodes with multiple line values
+	if hasMultipleLines(object.YNode().Value) {
+		return nil
+	}
+
 	linecomment, valueMatch := getLineComment(object.YNode().Value, cs.Replacer)
 
 	// sets the linecomment if the match is found
@@ -270,6 +275,10 @@ func getArraySetter(input *yaml.RNode) []string {
 
 	sort.Strings(output)
 	return output
+}
+
+func hasMultipleLines(value string) bool {
+	return strings.Contains(value, "\n")
 }
 
 // hasMatchValue checks if any of the ScalarSetter value matches with the node value
@@ -355,7 +364,7 @@ func Decode(rn *yaml.RNode, fcd *CreateSetters) error {
 	sort.Sort(CompareSetters(fcd.ScalarSetters))
 	for _, setter := range fcd.ScalarSetters {
 		fcd.Replacer = append(fcd.Replacer, setter.Value)
-		fcd.Replacer = append(fcd.Replacer,fmt.Sprintf("${%s}", setter.Name))
+		fcd.Replacer = append(fcd.Replacer, fmt.Sprintf("${%s}", setter.Name))
 	}
 	return nil
 }

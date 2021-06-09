@@ -189,6 +189,58 @@ spec:
 `,
 		},
 		{
+			name: "Multiple lines FoldedStyle",
+			config: `
+data:
+  images: |
+    - nginx
+    - ubuntu
+`,
+			input: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  images: |
+    - nginx
+    - ubuntu
+`,
+			expectedResources: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  images: |
+    - nginx
+    - ubuntu
+`,
+		},
+		{
+			name: "Multiple lines ScalarNode",
+			config: `
+data:
+  image: ubuntu
+`,
+			input: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  images: |
+    nginx
+    ubuntu
+`,
+			expectedResources: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+spec:
+  images: |
+    nginx
+    ubuntu
+`,
+		},
+		{
 			name: "containing overlap values",
 			config: `
 data:
