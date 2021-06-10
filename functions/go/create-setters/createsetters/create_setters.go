@@ -19,8 +19,8 @@ type CreateSetters struct {
 	// ScalarSetters holds the user provided values for simple scalar setters
 	ScalarSetters []ScalarSetter
 
-	// Replacer contains each of the setter value in odd indices and setter name in even indices
-	Replacer []string
+	// Replacer is used to replace the setter values
+	Replacer *strings.Replacer
 
 	// ArraySetters holds the user provided values for array setters
 	ArraySetters []ArraySetter
@@ -309,13 +309,12 @@ apiVersion: v1
 ...
 image: nginx:1.7.1 # kpt-set: ${image}:${tag}
 */
-func getLineComment(nodeValue string, replacer []string) (string, bool) {
+func getLineComment(nodeValue string, replacer *strings.Replacer) (string, bool) {
 	output := nodeValue
 	valueMatch := false
 
 	// replaces the strings simulataneously
-	replace := strings.NewReplacer(replacer...)
-	output = replace.Replace(nodeValue)
+	output = replacer.Replace(nodeValue)
 
 	if output != nodeValue {
 		valueMatch = true
@@ -362,9 +361,13 @@ func Decode(rn *yaml.RNode, fcd *CreateSetters) error {
 
 	// sorts all the Setters
 	sort.Sort(CompareSetters(fcd.ScalarSetters))
+	
+	// replacerArgs contains the setter values with parameter
+	replacerArgs := []string{}
 	for _, setter := range fcd.ScalarSetters {
-		fcd.Replacer = append(fcd.Replacer, setter.Value)
-		fcd.Replacer = append(fcd.Replacer, fmt.Sprintf("${%s}", setter.Name))
+		replacerArgs = append(replacerArgs, setter.Value)
+		replacerArgs = append(replacerArgs, fmt.Sprintf("${%s}", setter.Name))
 	}
+	fcd.Replacer = strings.NewReplacer(replacerArgs...)
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -467,6 +468,48 @@ spec:
     - ubuntu
 `,
 		},
+		{
+			name: "FlowStyle to FoldedStyle",
+			config: `
+data:
+  image: "[nginx, ubuntu]"
+  os: ubuntu
+`,
+			input: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: [nginx, ubuntu]
+`,
+			expectedResources: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: # kpt-set: ${image}
+    - nginx
+    - ubuntu # kpt-set: ${os}
+`,
+		},
+		{
+			name: "longest length match",
+			config: `
+data:
+  app: development
+  role: dev
+`,
+			input: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-development
+spec:
+  image: dev
+`,
+			expectedResources: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-development # kpt-set: nginx-${app}
+spec:
+  image: dev # kpt-set: ${role}
+`,
+		},
 	}
 	for i := range tests {
 		test := tests[i]
@@ -590,6 +633,11 @@ var resolveLineCommentCases = []lineCommentTest{
 		value:   "dev",
 		comment: `${role}`,
 	},
+	{
+		name:    "longest length match",
+		value:   "development",
+		comment: `${stage}`,
+	},
 }
 
 var inputSetters = []ScalarSetter{
@@ -600,6 +648,10 @@ var inputSetters = []ScalarSetter{
 	{
 		Name:  "role",
 		Value: "dev",
+	},
+	{
+		Name:  "stage",
+		Value: "development",
 	},
 	{
 		Name:  "app",
@@ -629,11 +681,12 @@ func TestCurrentSetterValues(t *testing.T) {
 			test := tests[i]
 			t.Run(test.name, func(t *testing.T) {
 				sort.Sort(CompareSetters(inputSetters))
-				Replacer := []string{}
+				replacerArgs := []string{}
 				for _, setter := range inputSetters {
-					Replacer = append(Replacer, setter.Value)
-					Replacer = append(Replacer, fmt.Sprintf("${%s}", setter.Name))
+					replacerArgs = append(replacerArgs, setter.Value)
+					replacerArgs = append(replacerArgs, fmt.Sprintf("${%s}", setter.Name))
 				}
+				Replacer := strings.NewReplacer(replacerArgs...)
 				res, match := getLineComment(test.value, Replacer)
 				if match {
 					if !assert.Equal(t, test.comment, res) {
